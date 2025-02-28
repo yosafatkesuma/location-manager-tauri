@@ -3,13 +3,32 @@ import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type CoordinateType = { longitude: number | null; latitude: number | null };
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+function App() {
+  const [coordinate, setCoordinate] = useState<CoordinateType | null>(null);
+  async function requestPermission() {
+    try {
+      await invoke("request_location_permission");
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async function getCoordination() {
+    try {
+      const checkPermission = await invoke("check_location_permission");
+      if (checkPermission) {
+        const locationCoordinate = (await invoke(
+          "location_coor"
+        )) as CoordinateType | null;
+        setCoordinate(locationCoordinate);
+      } else {
+        await requestPermission();
+      }
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   return (
@@ -29,21 +48,21 @@ function App() {
       </div>
       <p>Click on the Tauri, Vite, and React logos to learn more.</p>
 
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+      <button type="button" onClick={requestPermission}>
+        Request Permission
+      </button>
+      <button type="button" onClick={getCoordination}>
+        Get Coordination
+      </button>
+
+      {coordinate ? (
+        <div>
+          <p>Longitude: {coordinate.longitude}</p>
+          <p>Latitude: {coordinate.latitude}</p>
+        </div>
+      ) : (
+        <p>Location Null</p>
+      )}
     </main>
   );
 }
