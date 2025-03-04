@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import reactLogo from "./assets/react.svg";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
@@ -7,6 +7,17 @@ type CoordinateType = { longitude: number | null; latitude: number | null };
 
 function App() {
   const [coordinate, setCoordinate] = useState<CoordinateType | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await invoke("init_location");
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+  }, []);
+
   async function requestPermission() {
     try {
       await invoke("request_location_permission");
@@ -57,6 +68,7 @@ function App() {
 
       {coordinate ? (
         <div>
+          <h1>Location</h1>
           <p>Longitude: {coordinate.longitude}</p>
           <p>Latitude: {coordinate.latitude}</p>
         </div>

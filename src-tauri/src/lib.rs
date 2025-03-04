@@ -20,6 +20,15 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+fn init_location() {
+    unsafe {
+        INIT.call_once(|| {
+            LOCATION_MANAGER = Box::into_raw(Box::new(CLLocationManager::new()));
+        });
+    }
+}
+
+#[tauri::command]
 fn request_location_permission() {
     unsafe {
         println!("Requesting location permission");
@@ -51,15 +60,22 @@ fn cleanup_location_manager() {
     }
 }
 
-// Cleanup function to prevent memory leaks
 #[tauri::command]
 fn check_location_permission() -> Result<Option<bool>, String> {
     unsafe {
-        Ok(Some(!LOCATION_MANAGER.is_null()))
+        if LOCATION_MANAGER.is_null() {
+            Ok(None)
+        } else {
+            let manager = &*LOCATION_MANAGER;
+            let authorization_status = manager.authorizationStatus();
+            Ok(Some(
+                authorization_status == CLAuthorizationStatus::AuthorizedWhenInUse
+                    || authorization_status == CLAuthorizationStatus::AuthorizedAlways,
+            ))
+        }
     }
 }
 
-// Cleanup function to prevent memory leaks
 #[tauri::command]
 fn location_coor() -> Result<Option<Coordinate>, String> {
     unsafe {
@@ -67,12 +83,20 @@ fn location_coor() -> Result<Option<Coordinate>, String> {
             Ok(None)
         } else {
             let manager = &*LOCATION_MANAGER;
-            let coordination = manager.location();
-            let unwrap_coordination = (unsafe { coordination.unwrap() }).coordinate();
-            Ok(Some(Coordinate {
-                latitude: unwrap_coordination.latitude,
-                longitude: unwrap_coordination.longitude,
-            }))
+            let authorization_status = manager.authorizationStatus();
+            if authorization_status == CLAuthorizationStatus::AuthorizedWhenInUse
+                || authorization_status == CLAuthorizationStatus::AuthorizedAlways
+            {
+                let coordination = manager.location();
+                let unwrap_coordination = coordination.unwrap();
+                let coordinate = unwrap_coordination.coordinate();
+                Ok(Some(Coordinate {
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude,
+                }))
+            } else {
+                Ok(None)
+            }
         }
     }
 }
@@ -87,6 +111,7 @@ pub fn run() {
             cleanup_location_manager,
             location_coor,
             check_location_permission,
+            init_location,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
